@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { motion } from "framer-motion";
 import { LogOut, Menu, Plus, Trophy, User, X } from "lucide-react";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -127,9 +127,14 @@ export function Navigation() {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button onClick={() => signIn("google")} size="sm">
-                Sign In
-              </Button>
+              //   <Button onClick={() => signIn("google")} size="sm">
+              //     Sign In
+              //   </Button>
+              <Link href="/auth/signin">
+                <Button size="sm" variant="outline">
+                  Sign In
+                </Button>
+              </Link>
             )}
 
             {/* Mobile menu button */}
