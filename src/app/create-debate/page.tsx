@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { Badge } from "@/components/ui/badge";
@@ -82,7 +83,6 @@ export default function CreateDebatePage() {
     handleSubmit,
     formState: { errors },
     setValue,
-    watch,
   } = useForm<DebateFormData>({
     resolver: zodResolver(debateSchema),
   });
