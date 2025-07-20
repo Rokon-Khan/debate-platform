@@ -34,6 +34,7 @@
 // }
 
 import { AuthProvider } from "@/components/auth-provider";
+import { Footer } from "@/components/Footer";
 import { Navigation } from "@/components/Navigation";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -69,6 +70,7 @@ export default function RootLayout({
             <div className="min-h-screen bg-background text-foreground">
               <Navigation />
               <main>{children}</main>
+              <Footer />
             </div>
             <Toaster />
           </AuthProvider>
