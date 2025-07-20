@@ -6,7 +6,7 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 export const voteApi = createApi({
   reducerPath: "voteApi",
   baseQuery: fetchBaseQuery({
-    baseUrl: `${BASE_URL}/api/votes`,
+    baseUrl: `${BASE_URL}/votes`,
     prepareHeaders: (headers, { getState }) => {
       const token = (getState() as any).auth?.token;
       if (token) headers.set("Authorization", `Bearer ${token}`);

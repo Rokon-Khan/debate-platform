@@ -207,6 +207,7 @@ export default function DebatePage() {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const voteOnArgument = async (argumentId: string, hasVoted: boolean) => {
     if (!session) return;
     try {
@@ -295,7 +296,7 @@ export default function DebatePage() {
             </CardDescription>
 
             <div className="flex flex-wrap gap-2 mb-4">
-              {debate.tags.map((tag) => (
+              {debate.tags.map((tag: any) => (
                 <Badge key={tag} variant="outline" className="text-xs">
                   {tag}
                 </Badge>

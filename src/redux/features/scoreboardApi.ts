@@ -5,7 +5,7 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export const scoreboardApi = createApi({
   reducerPath: "scoreboardApi",
-  baseQuery: fetchBaseQuery({ baseUrl: `${BASE_URL}/api/scoreboard` }),
+  baseQuery: fetchBaseQuery({ baseUrl: `${BASE_URL}/scoreboard` }),
   endpoints: (builder) => ({
     getScoreboard: builder.query<any, { filter?: string }>({
       query: ({ filter }) => ({

@@ -13,7 +13,7 @@ export interface ArgumentEditInput {
 export const argumentApi = createApi({
   reducerPath: "argumentApi",
   baseQuery: fetchBaseQuery({
-    baseUrl: `${BASE_URL}/api/arguments`,
+    baseUrl: `${BASE_URL}/arguments`,
     prepareHeaders: (headers, { getState }) => {
       const token = (getState() as any).auth?.token;
       if (token) headers.set("Authorization", `Bearer ${token}`);
