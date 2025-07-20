@@ -38,6 +38,7 @@ import { Footer } from "@/components/Footer";
 import { Navigation } from "@/components/Navigation";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { ReduxProvider } from "@/redux/Provider";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import type React from "react";
@@ -67,11 +68,13 @@ export default function RootLayout({
           storageKey="debate-arena-theme"
         >
           <AuthProvider>
-            <div className="min-h-screen bg-background text-foreground">
-              <Navigation />
-              <main>{children}</main>
-              <Footer />
-            </div>
+            <ReduxProvider>
+              <div className="min-h-screen bg-background text-foreground">
+                <Navigation />
+                <main>{children}</main>
+                <Footer />
+              </div>
+            </ReduxProvider>
             <Toaster />
           </AuthProvider>
         </ThemeProvider>

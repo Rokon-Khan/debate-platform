@@ -18,7 +18,7 @@ export interface DebateJoinInput {
 export const debateApi = createApi({
   reducerPath: "debateApi",
   baseQuery: fetchBaseQuery({
-    baseUrl: `${BASE_URL}/api/debates`,
+    baseUrl: `${BASE_URL}/debates`,
     prepareHeaders: (headers, { getState }) => {
       const token = (getState() as any).auth?.token;
       if (token) headers.set("Authorization", `Bearer ${token}`);
