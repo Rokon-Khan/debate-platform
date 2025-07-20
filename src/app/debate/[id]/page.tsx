@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 "use client";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -11,6 +13,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  useDeleteArgumentMutation,
+  useEditArgumentMutation,
+  useListArgumentsQuery,
+  usePostArgumentMutation,
+} from "@/redux/features/argumentApi";
+import {
+  useGetDebateQuery,
+  useJoinDebateMutation,
+} from "@/redux/features/debateApi";
+import { useVoteArgumentMutation } from "@/redux/features/voteApi";
 import { formatDistanceToNow } from "date-fns";
 import { motion } from "framer-motion";
 import {
@@ -27,133 +40,112 @@ import {
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-// import { useToast } from "@/hooks/use-toast"
-
-interface Argument {
-  id: string;
-  content: string;
-  author: string;
-  authorId: string;
-  side: "support" | "oppose";
-  votes: number;
-  hasVoted: boolean;
-  createdAt: Date;
-  canEdit: boolean;
-}
-
-interface Debate {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  tags: string[];
-  createdBy: string;
-  createdAt: Date;
-  endsAt: Date;
-  supportCount: number;
-  opposeCount: number;
-  totalArguments: number;
-  status: "active" | "ended";
-  winner?: "support" | "oppose" | "tie";
-  userSide?: "support" | "oppose";
-  hasJoined: boolean;
-}
 
 const bannedWords = ["stupid", "idiot", "dumb", "moron", "fool"];
 
 export default function DebatePage() {
   const { data: session } = useSession();
-  const params = useParams();
-  //   const { toast } = useToast()
-  const [debate, setDebate] = useState<Debate | null>(null);
-  const [args, setArgs] = useState<Argument[]>([]);
-  const [newArgument, setNewArgument] = useState("");
-  const [selectedSide, setSelectedSide] = useState<"support" | "oppose" | null>(
-    null
+  const params = useParams<{ id: string }>();
+  const debateId = params.id;
+  const { data: debateRaw, isLoading: debateLoading } = useGetDebateQuery(
+    debateId,
+    { skip: !debateId }
   );
-  const [timeRemaining, setTimeRemaining] = useState("");
+  const {
+    data: argumentsRaw,
+    isLoading: argumentsLoading,
+    refetch: refetchArguments,
+  } = useListArgumentsQuery(debateId, { skip: !debateId });
+  const [joinDebate] = useJoinDebateMutation();
+  const [postArgument] = usePostArgumentMutation();
+  const [editArgument] = useEditArgumentMutation();
+  const [deleteArgument] = useDeleteArgumentMutation();
+  const [voteArgument] = useVoteArgumentMutation();
+
+  const [newArgument, setNewArgument] = useState("");
   const [replyTimer, setReplyTimer] = useState<number | null>(null);
 
-  // Mock data
-  useEffect(() => {
-    const mockDebate: Debate = {
-      id: params.id as string,
-      title: "Should AI replace human teachers in schools?",
-      description:
-        "Exploring the potential benefits and drawbacks of AI-powered education systems replacing traditional human educators.",
-      category: "Education",
-      tags: ["AI", "Education", "Technology"],
-      createdBy: "TechDebater",
-      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      endsAt: new Date(Date.now() + 22 * 60 * 60 * 1000),
-      supportCount: 15,
-      opposeCount: 23,
-      totalArguments: 38,
-      status: "active",
-      hasJoined: false,
+  // Memo Debate transformation
+  const debate = useMemo(() => {
+    if (!debateRaw) return null;
+    const supportCount =
+      debateRaw.participants?.filter((p: any) => p.side === "support").length ??
+      0;
+    const opposeCount =
+      debateRaw.participants?.filter((p: any) => p.side === "oppose").length ??
+      0;
+    const userSide =
+      session && debateRaw.participants
+        ? debateRaw.participants.find((p: any) => p.user === session.user?.id)
+            ?.side
+        : undefined;
+    const hasJoined =
+      session && debateRaw.participants
+        ? debateRaw.participants.some((p: any) => p.user === session.user?.id)
+        : false;
+    const ended = debateRaw.closed || new Date(debateRaw.endsAt) < new Date();
+
+    return {
+      id: debateRaw._id,
+      title: debateRaw.title,
+      description: debateRaw.description,
+      category: debateRaw.category,
+      tags: debateRaw.tags,
+      createdBy:
+        typeof debateRaw.createdBy === "object"
+          ? debateRaw.createdBy.username
+          : debateRaw.createdBy,
+      createdAt: new Date(debateRaw.createdAt),
+      endsAt: new Date(debateRaw.endsAt),
+      supportCount,
+      opposeCount,
+      totalArguments: argumentsRaw ? argumentsRaw.length : 0,
+      status: ended ? "ended" : "active",
+      winner: debateRaw.winner ?? undefined,
+      userSide,
+      hasJoined,
     };
+  }, [debateRaw, argumentsRaw, session]);
 
-    const mockArguments: Argument[] = [
-      {
-        id: "1",
-        content:
-          "AI can provide personalized learning experiences that adapt to each student's pace and learning style. This level of customization is impossible for human teachers managing 30+ students.",
-        author: "EduTechFan",
-        authorId: "user1",
-        side: "support",
-        votes: 12,
-        hasVoted: false,
-        createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
-        canEdit: false,
-      },
-      {
-        id: "2",
-        content:
-          "Human teachers provide emotional support, empathy, and social interaction that AI cannot replicate. Education is not just about information transfer but about human development.",
-        author: "HumanFirst",
-        authorId: "user2",
-        side: "oppose",
-        votes: 18,
-        hasVoted: false,
-        createdAt: new Date(Date.now() - 45 * 60 * 1000),
-        canEdit: false,
-      },
-      {
-        id: "3",
-        content:
-          "AI teachers would be available 24/7, never get tired, and could handle unlimited students simultaneously. This could solve the global teacher shortage crisis.",
-        author: "ScaleSolver",
-        authorId: "user3",
-        side: "support",
-        votes: 8,
-        hasVoted: false,
-        createdAt: new Date(Date.now() - 30 * 60 * 1000),
-        canEdit: false,
-      },
-    ];
-
-    setDebate(mockDebate);
-    setArgs(mockArguments);
-  }, [params.id]);
+  // Memo Arguments transformation
+  const args = useMemo(() => {
+    if (!argumentsRaw) return [];
+    return argumentsRaw.map((arg: any) => {
+      const canEdit =
+        session &&
+        arg.author?._id === session.user?.id &&
+        Date.now() - new Date(arg.createdAt).getTime() <= 5 * 60 * 1000; // 5 min
+      return {
+        id: arg._id,
+        content: arg.content,
+        author:
+          typeof arg.author === "object" ? arg.author.username : arg.author,
+        authorId: typeof arg.author === "object" ? arg.author._id : arg.author,
+        side: arg.side,
+        votes: arg.votes?.length ?? 0,
+        hasVoted: session ? arg.votes?.includes(session.user?.id) : false,
+        createdAt: new Date(arg.createdAt),
+        canEdit,
+      };
+    });
+  }, [argumentsRaw, session]);
 
   // Timer updates
+  const [timeRemaining, setTimeRemaining] = useState("");
   useEffect(() => {
     if (!debate) return;
-
     const updateTimer = () => {
       const now = new Date();
       if (debate.endsAt <= now) {
         setTimeRemaining("Debate Ended");
-        setDebate((prev) => (prev ? { ...prev, status: "ended" } : null));
       } else {
         setTimeRemaining(
           formatDistanceToNow(debate.endsAt, { addSuffix: true })
         );
       }
     };
-
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
@@ -162,43 +154,30 @@ export default function DebatePage() {
   // Reply timer for joined users
   useEffect(() => {
     if (replyTimer === null) return;
-
     if (replyTimer <= 0) {
       toast("You must post your first argument within 5 minutes of joining.");
       setReplyTimer(null);
       return;
     }
-
     const interval = setInterval(() => {
       setReplyTimer((prev) => (prev ? prev - 1 : null));
     }, 1000);
-
     return () => clearInterval(interval);
   }, [replyTimer]);
 
-  const joinSide = (side: "support" | "oppose") => {
+  const joinSide = async (side: "support" | "oppose") => {
     if (!session || !debate || debate.status === "ended") return;
-
-    setSelectedSide(side);
-    setDebate((prev) =>
-      prev
-        ? {
-            ...prev,
-            userSide: side,
-            hasJoined: true,
-            [side === "support" ? "supportCount" : "opposeCount"]:
-              prev[side === "support" ? "supportCount" : "opposeCount"] + 1,
-          }
-        : null
-    );
-
-    // Start 5-minute reply timer
-    setReplyTimer(5 * 60); // 5 minutes in seconds
-
-    toast(
-      `Joined ${side === "support" ? "Support" : "Oppose"} side!
-        You have 5 minutes to post your first argument.`
-    );
+    try {
+      await joinDebate({ id: debate.id, side }).unwrap();
+      toast(
+        `Joined ${
+          side === "support" ? "Support" : "Oppose"
+        } side! You have 5 minutes to post your first argument.`
+      );
+      setReplyTimer(5 * 60);
+    } catch (err: any) {
+      toast(err?.data?.message || "Could not join debate");
+    }
   };
 
   const checkForBannedWords = (text: string): boolean => {
@@ -206,49 +185,56 @@ export default function DebatePage() {
     return bannedWords.some((word) => lowerText.includes(word));
   };
 
-  const submitArgument = () => {
-    if (!session || !debate || !selectedSide || !newArgument.trim()) return;
-
+  const submitArgument = async () => {
+    if (!session || !debate || !debate.userSide || !newArgument.trim()) return;
     if (checkForBannedWords(newArgument)) {
       toast(
         "Your argument contains inappropriate language. Please revise and try again."
       );
       return;
     }
-
-    const argument: Argument = {
-      id: Date.now().toString(),
-      content: newArgument.trim(),
-      author: session.user?.name || "Anonymous",
-      authorId: session.user?.email || "anonymous",
-      side: selectedSide,
-      votes: 0,
-      hasVoted: false,
-      createdAt: new Date(),
-      canEdit: true,
-    };
-
-    setArgs((prev) => [argument, ...prev]);
-    setNewArgument("");
-    setReplyTimer(null); // Clear reply timer after first post
-
-    toast("Your argument has been added to the debate.");
+    try {
+      await postArgument({
+        debateId: debate.id,
+        content: newArgument.trim(),
+      }).unwrap();
+      setNewArgument("");
+      setReplyTimer(null); // Clear reply timer after first post
+      await refetchArguments();
+      toast("Your argument has been added to the debate.");
+    } catch (err: any) {
+      toast(err?.data?.message || "Failed to post argument");
+    }
   };
 
-  const voteOnArgument = (argumentId: string) => {
+  const voteOnArgument = async (argumentId: string, hasVoted: boolean) => {
     if (!session) return;
+    try {
+      await voteArgument(argumentId).unwrap();
+      await refetchArguments();
+    } catch (err: any) {
+      toast(err?.data?.message || "Failed to vote");
+    }
+  };
 
-    setArgs((prev) =>
-      prev.map((arg) =>
-        arg.id === argumentId
-          ? {
-              ...arg,
-              votes: arg.hasVoted ? arg.votes - 1 : arg.votes + 1,
-              hasVoted: !arg.hasVoted,
-            }
-          : arg
-      )
-    );
+  const handleEditArgument = async (argumentId: string, newContent: string) => {
+    try {
+      await editArgument({ id: argumentId, content: newContent }).unwrap();
+      await refetchArguments();
+      toast("Argument updated.");
+    } catch (err: any) {
+      toast(err?.data?.message || "Failed to edit argument");
+    }
+  };
+
+  const handleDeleteArgument = async (argumentId: string) => {
+    try {
+      await deleteArgument(argumentId).unwrap();
+      await refetchArguments();
+      toast("Argument deleted.");
+    } catch (err: any) {
+      toast(err?.data?.message || "Failed to delete argument");
+    }
   };
 
   const shareDebate = () => {
@@ -256,7 +242,11 @@ export default function DebatePage() {
     toast("Debate link has been copied to your clipboard.");
   };
 
-  if (!debate) {
+  // Split by side
+  const supportArgs = args.filter((arg) => arg.side === "support");
+  const opposeArgs = args.filter((arg) => arg.side === "oppose");
+
+  if (debateLoading || argumentsLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">Loading debate...</div>
@@ -264,8 +254,13 @@ export default function DebatePage() {
     );
   }
 
-  const supportArgs = args.filter((arg) => arg.side === "support");
-  const opposeArgs = args.filter((arg) => arg.side === "oppose");
+  if (!debate) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">Debate not found.</div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -409,11 +404,13 @@ export default function DebatePage() {
               <CardTitle className="flex items-center gap-2">
                 <div
                   className={`w-3 h-3 rounded-full ${
-                    selectedSide === "support" ? "bg-green-500" : "bg-red-500"
+                    debate.userSide === "support"
+                      ? "bg-green-500"
+                      : "bg-red-500"
                   }`}
                 />
                 Post Your Argument (
-                {selectedSide === "support" ? "Support" : "Oppose"})
+                {debate.userSide === "support" ? "Support" : "Oppose"})
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -465,7 +462,7 @@ export default function DebatePage() {
                         <div className="flex items-center gap-2">
                           <Avatar className="h-8 w-8">
                             <AvatarFallback>
-                              {argument.author.charAt(0).toUpperCase()}
+                              {argument.author?.charAt(0)?.toUpperCase() ?? "?"}
                             </AvatarFallback>
                           </Avatar>
                           <div>
@@ -481,10 +478,40 @@ export default function DebatePage() {
                         </div>
                         {argument.canEdit && (
                           <div className="flex gap-1">
-                            <Button variant="ghost" size="sm">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={async () => {
+                                const newContent = prompt(
+                                  "Edit your argument:",
+                                  argument.content
+                                );
+                                if (
+                                  newContent &&
+                                  newContent.trim() &&
+                                  !checkForBannedWords(newContent)
+                                ) {
+                                  await handleEditArgument(
+                                    argument.id,
+                                    newContent.trim()
+                                  );
+                                } else if (
+                                  newContent &&
+                                  checkForBannedWords(newContent)
+                                ) {
+                                  toast(
+                                    "Your argument contains inappropriate language."
+                                  );
+                                }
+                              }}
+                            >
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="sm">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteArgument(argument.id)}
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -495,7 +522,9 @@ export default function DebatePage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => voteOnArgument(argument.id)}
+                          onClick={() =>
+                            voteOnArgument(argument.id, argument.hasVoted)
+                          }
                           className={argument.hasVoted ? "text-blue-600" : ""}
                           disabled={!session || debate.status === "ended"}
                         >
@@ -537,7 +566,7 @@ export default function DebatePage() {
                         <div className="flex items-center gap-2">
                           <Avatar className="h-8 w-8">
                             <AvatarFallback>
-                              {argument.author.charAt(0).toUpperCase()}
+                              {argument.author?.charAt(0)?.toUpperCase() ?? "?"}
                             </AvatarFallback>
                           </Avatar>
                           <div>
@@ -553,10 +582,40 @@ export default function DebatePage() {
                         </div>
                         {argument.canEdit && (
                           <div className="flex gap-1">
-                            <Button variant="ghost" size="sm">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={async () => {
+                                const newContent = prompt(
+                                  "Edit your argument:",
+                                  argument.content
+                                );
+                                if (
+                                  newContent &&
+                                  newContent.trim() &&
+                                  !checkForBannedWords(newContent)
+                                ) {
+                                  await handleEditArgument(
+                                    argument.id,
+                                    newContent.trim()
+                                  );
+                                } else if (
+                                  newContent &&
+                                  checkForBannedWords(newContent)
+                                ) {
+                                  toast(
+                                    "Your argument contains inappropriate language."
+                                  );
+                                }
+                              }}
+                            >
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="sm">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteArgument(argument.id)}
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -567,7 +626,9 @@ export default function DebatePage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => voteOnArgument(argument.id)}
+                          onClick={() =>
+                            voteOnArgument(argument.id, argument.hasVoted)
+                          }
                           className={argument.hasVoted ? "text-blue-600" : ""}
                           disabled={!session || debate.status === "ended"}
                         >
