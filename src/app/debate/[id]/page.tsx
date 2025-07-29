@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 "use client";
@@ -26,6 +27,7 @@ import {
 import { useVoteArgumentMutation } from "@/redux/features/voteApi";
 import { formatDistanceToNow } from "date-fns";
 import { motion } from "framer-motion";
+import Cookies from "js-cookie";
 import {
   AlertTriangle,
   Clock,
@@ -39,20 +41,24 @@ import {
   Users,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 const bannedWords = ["stupid", "idiot", "dumb", "moron", "fool"];
 
 export default function DebatePage() {
-  const { data: session } = useSession();
+  // const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const router = useRouter();
   const params = useParams<{ id: string }>();
   const debateId = params.id;
-  const { data: debateRaw, isLoading: debateLoading } = useGetDebateQuery(
-    debateId,
-    { skip: !debateId }
-  );
+  const {
+    data: debateRaw,
+    isLoading: debateLoading,
+    refetch: refetchDebate,
+  } = useGetDebateQuery(debateId, { skip: !debateId });
   const {
     data: argumentsRaw,
     isLoading: argumentsLoading,
@@ -95,7 +101,7 @@ export default function DebatePage() {
       tags: debateRaw.tags,
       createdBy:
         typeof debateRaw.createdBy === "object"
-          ? debateRaw.createdBy.username
+          ? debateRaw.createdBy?.username || null
           : debateRaw.createdBy,
       createdAt: new Date(debateRaw.createdAt),
       endsAt: new Date(debateRaw.endsAt),
@@ -169,6 +175,7 @@ export default function DebatePage() {
     if (!session || !debate || debate.status === "ended") return;
     try {
       await joinDebate({ id: debate.id, side }).unwrap();
+      await refetchDebate();
       toast(
         `Joined ${
           side === "support" ? "Support" : "Oppose"
@@ -207,7 +214,6 @@ export default function DebatePage() {
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const voteOnArgument = async (argumentId: string, hasVoted: boolean) => {
     if (!session) return;
     try {
@@ -246,6 +252,47 @@ export default function DebatePage() {
   // Split by side
   const supportArgs = args.filter((arg) => arg.side === "support");
   const opposeArgs = args.filter((arg) => arg.side === "oppose");
+
+  useEffect(() => {
+    // Check for NextAuth session or auth_token cookie
+    const token = Cookies.get("auth_token");
+    if (session || token) {
+      setIsAuthenticated(true);
+    } else {
+      setIsAuthenticated(false);
+    }
+  }, [session, status]);
+
+  if (!isAuthenticated) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Card className="max-w-md mx-auto">
+          <CardHeader>
+            <CardTitle>Authentication Required</CardTitle>
+            <CardDescription>
+              You need to be signed in to create a debate.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center space-y-4">
+              <p>
+                Please sign in to participate in debates or create new ones.
+              </p>
+              <Button
+                onClick={() => router.push("/auth/signin")}
+                className="w-full"
+              >
+                Sign In
+              </Button>
+              <Button onClick={() => router.push("/")} className="w-full">
+                Go Back Home
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (debateLoading || argumentsLoading) {
     return (
@@ -296,7 +343,7 @@ export default function DebatePage() {
             </CardDescription>
 
             <div className="flex flex-wrap gap-2 mb-4">
-              {debate.tags.map((tag: any) => (
+              {debate.tags.map((tag: string) => (
                 <Badge key={tag} variant="outline" className="text-xs">
                   {tag}
                 </Badge>
@@ -318,7 +365,9 @@ export default function DebatePage() {
                   {timeRemaining}
                 </div>
               </div>
-              <div className="text-sm">Created by {debate.createdBy}</div>
+              <div className="text-sm">
+                Created by {debate?.createdBy || "N/A"}
+              </div>
             </div>
           </CardHeader>
         </Card>
@@ -520,6 +569,7 @@ export default function DebatePage() {
                       </div>
                       <p className="text-sm mb-4">{argument.content}</p>
                       <div className="flex items-center justify-between">
+                        <p>Prees Thumb To Vote</p>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -624,6 +674,7 @@ export default function DebatePage() {
                       </div>
                       <p className="text-sm mb-4">{argument.content}</p>
                       <div className="flex items-center justify-between">
+                        <p>Prees Thumb To Vote</p>
                         <Button
                           variant="ghost"
                           size="sm"

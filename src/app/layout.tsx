@@ -40,7 +40,7 @@ export default function RootLayout({
               </div>
               <Footer />
             </ReduxProvider>
-            <Toaster />
+            <Toaster position="top-center" />
           </AuthProvider>
         </ThemeProvider>
       </body>
